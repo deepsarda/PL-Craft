@@ -2,6 +2,18 @@
 -- While playing it holds the dense block array and the span cache in package state.
 create or replace package pc_world as
 
+  -- The span cache: each world column's solid runs, sorted bottom to top, at most 16.
+  -- Public so the renderer can read it without copying; only this package writes it. VARRAYs, as benchmark
+  -- B3 picked, so indexes start at 1:
+  --   g_span_n(col + 1)            spans in world column col = x * 128 + z
+  --   g_span_y0(col * 16 + k + 1)  bottom of span k; g_span_y1 its top (exclusive); g_span_m its material
+  type t_span_counts is varray(16384) of pls_integer;  -- 128 × 128 columns
+  type t_span_slots is varray(262144) of pls_integer;  -- 16 slots each
+  g_span_n  t_span_counts := t_span_counts();
+  g_span_y0 t_span_slots := t_span_slots();
+  g_span_y1 t_span_slots := t_span_slots();
+  g_span_m  t_span_slots := t_span_slots();
+
   -- Writes PC_WORLDS and all PC_COLUMN rows for one world. Admin script, once per world (Section 3.2).
   procedure generate(p_world_id in pls_integer, p_seed in pls_integer);
 

@@ -127,7 +127,9 @@ function size(w, h) {
 }
 
 // Scale by a whole number of device pixels so every game pixel is the same size, and centre on a device
-// pixel. --gp (one game pixel in CSS px) then sizes the type, HUD and hotbar on the same grid.
+// pixel. --ui sizes the type, HUD and hotbar as if the screen were 640 wide, whatever SCREEN_W the database
+// renders (Section 14.1 allows 160 to 640), in whole device pixels so the 11px type stays crisp. At 640×360
+// one --ui is one game pixel.
 function fit() {
   const dpr = devicePixelRatio || 1;
   const scale = Math.max(1, Math.floor(Math.min((innerWidth * dpr) / width, (innerHeight * dpr) / height)));
@@ -136,7 +138,7 @@ function fit() {
   stage.style.height = `${height * gp}px`;
   stage.style.left = `${Math.round((innerWidth * dpr - width * scale) / 2) / dpr}px`;
   stage.style.top = `${Math.max(0, Math.round((innerHeight * dpr - height * scale) / 2)) / dpr}px`;
-  stage.style.setProperty('--gp', `${gp}px`);
+  stage.style.setProperty('--ui', `${Math.max(1, Math.floor((scale * width) / 640)) / dpr}px`);
 }
 
 addEventListener('resize', fit);

@@ -17,8 +17,9 @@ begin
     raise_application_error(-20000, 'yaw did not wrap: ' || to_char(pc_phys.g_player.yaw, 'fm990.000000'));
   end if;
   pc_phys.look(0, -100000);
-  if abs(pc_phys.g_player.pitch - 35 * c_pi / 180) > 1e-9 then
-    raise_application_error(-20000, 'pitch went to ' || to_char(pc_phys.g_player.pitch, 'fm990.000000') || ', limit is 35°');
+  if abs(pc_phys.g_player.pitch - pc_const.setting('PITCH_LIMIT_DEG') * c_pi / 180) > 1e-9 then
+    raise_application_error(-20000, 'pitch went to ' || to_char(pc_phys.g_player.pitch, 'fm990.000000')
+      || ', limit is ' || pc_const.setting('PITCH_LIMIT_DEG') || '°');
   end if;
 end;
 /

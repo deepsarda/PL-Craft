@@ -9,7 +9,7 @@ const F = 320; // focal length for a 90° FOV, so P = tan 45° = 1 (Section 7.1)
 const EYE = 1.62;
 const FEET = { x: 64.5, y: 24, z: 64.5 }; // standing on grass whose top is at y = 24
 const SENS = 0.0025;
-const PITCH_LIMIT = (35 * Math.PI) / 180;
+const PITCH_LIMIT = (55 * Math.PI) / 180; // PITCH_LIMIT_DEG
 const REACH = 5;
 const FAR = 48;
 const PILLAR_DEPTH = 20;

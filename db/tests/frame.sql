@@ -61,7 +61,7 @@ begin
     for k in 0 .. 23 loop
       pc_frame.run(k * 14, 14, mod(c + k, 256));
     end loop;
-    pc_frame.run(336, 24, 255);
+    pc_frame.run(336, 24, mod(c + 24, 256)); -- a colour unlike its neighbour, so it stays its own run
     pc_frame.end_column;
   end loop;
   pc_frame.finish(l_header, l_frame);
@@ -79,5 +79,25 @@ begin
     end if;
     l_at := l_at + 2 + 25 * 5;
   end loop;
+end;
+/
+
+-- A run continuing the column's last run in the same colour joins it, painting downward or upward
+declare
+  l_header pc_frame.t_header;
+  l_frame  blob;
+begin
+  pc_frame.init(1, 360);
+  pc_frame.begin_frame;
+  pc_frame.run(300, 60, 64); -- near grass
+  pc_frame.run(280, 20, 64); -- the next cell's grass, just above: joins, now rows 280–359
+  pc_frame.run(270, 10, 68); -- fogged: a new run
+  pc_frame.run(0, 100, 0);   -- sky, not touching: a new run
+  pc_frame.run(100, 170, 0); -- sky just below it: joins, now rows 0–269
+  pc_frame.end_column;
+  pc_frame.finish(l_header, l_frame);
+  if rawtohex(dbms_lob.substr(l_frame, 17, 53)) != '0003' || '0118005040' || '010E000A44' || '0000010E00' then
+    raise_application_error(-20000, 'runs are ' || rawtohex(dbms_lob.substr(l_frame, 17, 53)));
+  end if;
 end;
 /

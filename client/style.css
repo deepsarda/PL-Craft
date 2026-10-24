@@ -1,5 +1,5 @@
-/* Departure Mono is drawn on an 11px grid: 7px advance, 14px line. The stage is scaled by whole device
-   pixels, and --gp is one game pixel in CSS px, so 11 game pixels of type always lands on that grid. */
+/* Departure Mono is drawn on an 11px grid: 7px advance, 14px line. --ui is a whole number of device pixels
+   (one game pixel at 640×360, see fit() in main.js), so 11 --ui of type always lands on that grid. */
 @font-face {
   font-family: "Departure Mono";
   src: url("fonts/DepartureMono-Regular.woff2") format("woff2");
@@ -31,10 +31,10 @@ body {
 }
 
 #stage {
-  --gp: 1px;
+  --ui: 1px;
   position: absolute;
-  font-size: calc(var(--gp) * 11);
-  line-height: calc(var(--gp) * 14);
+  font-size: calc(var(--ui) * 11);
+  line-height: calc(var(--ui) * 14);
 }
 
 #stage p,
@@ -61,9 +61,9 @@ body {
 /* Heads-up display, toggled with F3. */
 #hud {
   position: absolute;
-  top: calc(var(--gp) * 4);
-  left: calc(var(--gp) * 4);
-  padding: calc(var(--gp) * 2) calc(var(--gp) * 4);
+  top: calc(var(--ui) * 4);
+  left: calc(var(--ui) * 4);
+  padding: calc(var(--ui) * 2) calc(var(--ui) * 4);
   background: rgb(0 0 0 / 0.5);
   pointer-events: none;
 }
@@ -75,11 +75,11 @@ body {
 /* Hotbar: 20-pixel slots holding 16-pixel cubes drawn with the in-game palette. */
 #hotbar {
   position: absolute;
-  bottom: calc(var(--gp) * 4);
+  bottom: calc(var(--ui) * 4);
   left: 0;
   right: 0;
   display: flex;
-  gap: calc(var(--gp) * 2);
+  gap: calc(var(--ui) * 2);
   width: max-content;
   margin: 0 auto;
   padding: 0;
@@ -91,9 +91,9 @@ body {
   display: grid;
   place-items: center;
   box-sizing: border-box;
-  width: calc(var(--gp) * 20);
-  height: calc(var(--gp) * 20);
-  border: var(--gp) solid rgb(0 0 0 / 0.45);
+  width: calc(var(--ui) * 20);
+  height: calc(var(--ui) * 20);
+  border: var(--ui) solid rgb(0 0 0 / 0.45);
   background: rgb(0 0 0 / 0.3);
 }
 
@@ -102,18 +102,18 @@ body {
 }
 
 #hotbar canvas {
-  width: calc(var(--gp) * 16);
-  height: calc(var(--gp) * 16);
+  width: calc(var(--ui) * 16);
+  height: calc(var(--ui) * 16);
   image-rendering: pixelated;
 }
 
 #held-name {
   position: absolute;
-  bottom: calc(var(--gp) * 28);
+  bottom: calc(var(--ui) * 28);
   left: 0;
   right: 0;
   text-align: center;
-  text-shadow: var(--gp) var(--gp) 0 var(--black);
+  text-shadow: var(--ui) var(--ui) 0 var(--black);
   opacity: 0;
   pointer-events: none;
 }
@@ -128,7 +128,7 @@ body {
   position: absolute;
   inset: 0;
   box-sizing: border-box;
-  padding: calc(var(--gp) * 12) calc(var(--gp) * 16);
+  padding: calc(var(--ui) * 12) calc(var(--ui) * 16);
   overflow: hidden;
   background: var(--veil);
   cursor: default;

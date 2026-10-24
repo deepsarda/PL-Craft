@@ -40,5 +40,9 @@ create or replace package pc_frame as
   -- Frees the BLOB at the end of the session.
   procedure free;
 
+  -- Test T-R1's check on the runs recorded since begin_frame: null when every column's runs cover every row
+  -- exactly once, otherwise what is wrong.
+  function coverage_error return varchar2;
+
 end pc_frame;
 /

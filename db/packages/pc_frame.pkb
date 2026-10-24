@@ -20,6 +20,7 @@ create or replace package body pc_frame as
   g_runs   simple_integer := 0;
   g_ends   t_ints;                 -- g_ends(c): runs recorded up to the end of column c
   g_cols   simple_integer := 0;
+  g_column_first simple_integer := 1; -- the current column's first run
 
   -- Big-endian hex of an unsigned value, clamped to what p_bytes can hold. For the header only.
   function hex(p_value in number, p_bytes in pls_integer) return varchar2 is
@@ -52,10 +53,23 @@ create or replace package body pc_frame as
   begin
     g_runs := 0;
     g_cols := 0;
+    g_column_first := 1;
   end begin_frame;
 
   procedure run(p_start in pls_integer, p_length in pls_integer, p_index in pls_integer) is
   begin
+    -- A run that continues the column's last one in the same colour joins it. Flat ground arrives one cell
+    -- at a time, and the fog bands would otherwise stay chopped into those pieces.
+    if g_runs >= g_column_first and g_index(g_runs) = p_index then
+      if g_start(g_runs) = p_start + p_length then
+        g_start(g_runs) := p_start;
+        g_length(g_runs) := g_length(g_runs) + p_length;
+        return;
+      elsif g_start(g_runs) + g_length(g_runs) = p_start then
+        g_length(g_runs) := g_length(g_runs) + p_length;
+        return;
+      end if;
+    end if;
     g_runs := g_runs + 1;
     g_start(g_runs) := p_start;
     g_length(g_runs) := p_length;
@@ -66,6 +80,7 @@ create or replace package body pc_frame as
   begin
     g_cols := g_cols + 1;
     g_ends(g_cols) := g_runs;
+    g_column_first := g_runs + 1;
   end end_column;
 
   procedure finish(p_header in t_header, p_frame out blob) is
@@ -112,6 +127,36 @@ create or replace package body pc_frame as
       g_blob := null;
     end if;
   end free;
+
+  function coverage_error return varchar2 is
+    l_seen  t_ints; -- row → the last column that painted it
+    l_first pls_integer := 1;
+    l_rows  pls_integer;
+  begin
+    if g_cols != g_width then
+      return g_cols || ' columns, expected ' || g_width;
+    end if;
+    for c in 1 .. g_cols loop
+      l_rows := 0;
+      for k in l_first .. g_ends(c) loop
+        if g_length(k) < 1 or g_start(k) < 0 or g_start(k) + g_length(k) > g_height then
+          return 'column ' || (c - 1) || ' has a run at rows ' || g_start(k) || '+' || g_length(k);
+        end if;
+        for r in g_start(k) .. g_start(k) + g_length(k) - 1 loop
+          if l_seen.exists(r) and l_seen(r) = c then
+            return 'column ' || (c - 1) || ' paints row ' || r || ' twice';
+          end if;
+          l_seen(r) := c;
+        end loop;
+        l_rows := l_rows + g_length(k);
+      end loop;
+      if l_rows != g_height then
+        return 'column ' || (c - 1) || ' paints ' || l_rows || ' of its ' || g_height || ' rows';
+      end if;
+      l_first := g_ends(c) + 1;
+    end loop;
+    return null;
+  end coverage_error;
 
 end pc_frame;
 /

@@ -243,7 +243,7 @@ create or replace package body pc_bench as
       for k in 0 .. 22 loop
         pc_frame.run(k * 15, 15, mod(c + k, 256));
       end loop;
-      pc_frame.run(345, 15, 7);
+      pc_frame.run(345, 15, mod(c + 23, 256)); -- unlike its neighbour, so no runs merge
       pc_frame.end_column;
     end loop;
     l_record := ms_since(l_start);

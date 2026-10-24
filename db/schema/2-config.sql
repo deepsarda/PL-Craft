@@ -9,7 +9,7 @@ using (values
   ('FOV_H_DEG', 90),
   ('FAR', 48),
   ('FOG_START', 24),
-  ('PITCH_LIMIT_DEG', 35),
+  ('PITCH_LIMIT_DEG', 55), 
   ('EARLYOUT_EVERY', 4),
   -- World and terrain, read at generation (14.2)
   ('GEN_PHASE', 1),
