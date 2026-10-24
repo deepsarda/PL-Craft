@@ -55,7 +55,7 @@ create or replace package body pc_noise as
     l_j simple_integer := 0;
     l_tmp pls_integer;
   begin 
-    l_s := mod(nvl(p_seed, 1), c_prng_m);
+    l_s := mod(nvl(p_seed, 1), pc_const.c_prng_m);
     if l_s<=0 then
       l_s :=1;
     end if;
@@ -65,7 +65,7 @@ create or replace package body pc_noise as
     end loop;
 
     for i in reverse 0..255 loop
-      l_s := MOD(c_prng_a * l_s, c_prng_m);
+      l_s := MOD(pc_const.c_prng_a * l_s, pc_const.c_prng_m);
       l_j := MOD(l_s, i + 1);
       l_tmp  := l_p(i);
       l_p(i) := l_p(l_j);
@@ -112,11 +112,11 @@ create or replace package body pc_noise as
     l_n1 binary_double := 0.0d;
     l_n2 binary_double := 0.0d;
   begin
-    l_s := (p_x + p_y) * c_f2;
+    l_s := (p_x + p_y) * pc_const.c_f2;
     l_i := floor(p_x + l_s);
     l_j := floor(p_y + l_s);
 
-    l_t := (l_i + l_j) * c_g2;
+    l_t := (l_i + l_j) * pc_const.c_g2;
     l_x0 := p_x - (l_i - l_t);
     l_y0 := p_y - (l_j - l_t);
 
@@ -126,10 +126,10 @@ create or replace package body pc_noise as
       l_i1 := 0; l_j1 := 1;
     end if;
 
-    l_x1 := l_x0 - l_i1 + c_g2;
-    l_y1 := l_y0 - l_j1 + c_g2;
-    l_x2 := l_x0 - 1.0d + 2.0d * c_g2;
-    l_y2 := l_y0 - 1.0d + 2.0d * c_g2;
+    l_x1 := l_x0 - l_i1 + pc_const.c_g2;
+    l_y1 := l_y0 - l_j1 + pc_const.c_g2;
+    l_x2 := l_x0 - 1.0d + 2.0d * pc_const.c_g2;
+    l_y2 := l_y0 - 1.0d + 2.0d * pc_const.c_g2;
 
     l_ii := BITAND(l_i, 255);
     l_jj := BITAND(l_j, 255);
@@ -204,12 +204,12 @@ create or replace package body pc_noise as
     l_n3 binary_double := 0.0d; 
 
   begin
-    l_s := (p_x + p_y + p_z) * c_f3;
+    l_s := (p_x + p_y + p_z) * pc_const.c_f3;
     l_i := floor(p_x + l_s);
     l_j := floor(p_y + l_s);
     l_k := floor(p_z + l_s);
 
-    l_t := (l_i + l_j + l_k) * c_g3;
+    l_t := (l_i + l_j + l_k) * pc_const.c_g3;
     l_x0 := p_x - (l_i - l_t);
     l_y0 := p_y - (l_j - l_t);
     l_z0 := p_z - (l_k - l_t);
@@ -238,15 +238,15 @@ create or replace package body pc_noise as
       end if;
     end if;
 
-    l_x1 := l_x0 - l_i1 + c_g3;
-    l_y1 := l_y0 - l_j1 + c_g3;
-    l_z1 := l_z0 - l_k1 + c_g3;
-    l_x2 := l_x0 - l_i2 + 2.0d * c_g3;
-    l_y2 := l_y0 - l_j2 + 2.0d * c_g3;
-    l_z2 := l_z0 - l_k2 + 2.0d * c_g3;
-    l_x3 := l_x0 - 1.0d + 3.0d * c_g3;
-    l_y3 := l_y0 - 1.0d + 3.0d * c_g3;
-    l_z3 := l_z0 - 1.0d + 3.0d * c_g3;
+    l_x1 := l_x0 - l_i1 + pc_const.c_g3;
+    l_y1 := l_y0 - l_j1 + pc_const.c_g3;
+    l_z1 := l_z0 - l_k1 + pc_const.c_g3;
+    l_x2 := l_x0 - l_i2 + 2.0d * pc_const.c_g3;
+    l_y2 := l_y0 - l_j2 + 2.0d * pc_const.c_g3;
+    l_z2 := l_z0 - l_k2 + 2.0d * pc_const.c_g3;
+    l_x3 := l_x0 - 1.0d + 3.0d * pc_const.c_g3;
+    l_y3 := l_y0 - 1.0d + 3.0d * pc_const.c_g3;
+    l_z3 := l_z0 - 1.0d + 3.0d * pc_const.c_g3;
 
     l_ii := BITAND(l_i, 255);
     l_jj := BITAND(l_j, 255);
