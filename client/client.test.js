@@ -26,6 +26,19 @@ test('header fields survive a write and a read, including the offset pitch', () 
   assert.deepEqual(readHeader(dv), { magic: 0x5043, version: 1, ...h });
 });
 
+test('T-F2: the header bytes that db/tests/frame.sql checks pc_frame against', () => {
+  const dv = new DataView(new ArrayBuffer(HEADER_BYTES));
+  writeHeader(dv, {
+    flags: 1, seq: 1834, width: 640, height: 360, renderUs: 18250, physUs: 310, editUs: 0, packUs: 0,
+    px: 64.5, py: 24, pz: 64.5, yaw: 1.5708, pitch: -0.2, held: 2,
+    targetFace: 3, targetX: 66, targetY: 23, targetZ: 65, runTotal: 1920,
+  });
+  assert.equal(
+    Buffer.from(dv.buffer).toString('hex').toUpperCase(),
+    '504301010000072A028001680000474A01360000' + '0000' + '00000000FBF400005DC00000FBF43D5C7830020300420017004100000780',
+  );
+});
+
 test('palette index 69 is the Section 9.4 worked example', () => {
   assert.deepEqual(shade(MATERIALS[4].rgb, 1, 1), [109, 154, 103]);
   assert.equal(buildPalette()[69], (0xff000000 | (103 << 16) | (154 << 8) | 109) >>> 0);

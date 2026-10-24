@@ -99,6 +99,7 @@ export async function openTestCard() {
       });
       return Buffer.from(buf.subarray(0, o)); // a copy, because the next tick reuses buf
     },
+    async save() {},
     lost: () => false,
     async shutdown() {},
   };

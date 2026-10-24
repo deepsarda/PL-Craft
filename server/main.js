@@ -15,6 +15,7 @@ import { openTestCard } from './testcard.js';
 const PORT = Number(process.env.PORT ?? 8080);
 const TESTCARD = process.argv.includes('--testcard');
 const STATS_EVERY_MS = 5000;
+const IDLE_SAVE_MS = 2000; // COMMIT_INTERVAL_S's default
 
 if (!TESTCARD && !dbSettings()) {
   console.error('Set PLCRAFT_DB_USER, PLCRAFT_DB_PASSWORD and PLCRAFT_DB_CONNECT_STRING in .env (see .env.example), or run npm run testcard.');
@@ -94,6 +95,8 @@ function session(ws) {
   let engine = null;
   let pending = null; // the next input, merged if several arrived during one tick
   let ticking = null; // promise of the tick loop, while it runs
+  let saveDue = false; // ticks stopped, so pc_engine.save should run
+  let idle = null; // timer that sets saveDue
   const calls = [];
   let renderUs = 0;
   let packUs = 0;
@@ -133,13 +136,39 @@ function session(ws) {
     }
   }
 
+  // pc_engine commits from inside ticks, at most every COMMIT_INTERVAL_S, and a paused browser stops
+  // ticking. So once ticks stop for a moment, save once: the player and any edits since the last commit
+  // are then never at risk for longer than that (Section 11.5).
+  const armIdleSave = () => {
+    clearTimeout(idle);
+    idle = setTimeout(() => {
+      saveDue = true;
+      kick();
+    }, IDLE_SAVE_MS);
+  };
+
+  function kick() {
+    ticking ??= pump().finally(() => { ticking = null; });
+  }
+
+  // Ticks and saves share one connection, so they take turns here.
   async function pump() {
-    while (pending && ws.readyState === ws.OPEN) {
+    while ((pending || saveDue) && ws.readyState === ws.OPEN) {
+      if (!pending) {
+        saveDue = false;
+        try {
+          await engine.save();
+        } catch (err) {
+          console.error(`${who()}: saving after the game paused failed`, err);
+        }
+        continue;
+      }
       const input = pending;
       pending = null;
       const began = performance.now();
       try {
         const frame = await engine.tick(input);
+        armIdleSave();
         calls.push(performance.now() - began);
         const header = readHeader(new DataView(frame.buffer, frame.byteOffset, frame.byteLength));
         renderUs += header.renderUs;
@@ -165,7 +194,7 @@ function session(ws) {
     const input = parseInput(msg);
     if (!input) return fail('The server could not read that input message.');
     pending = pending ? mergeInput(pending, input) : input;
-    ticking ??= pump().finally(() => { ticking = null; });
+    kick();
   });
 
   ws.on('error', err => console.error(`${who()}: socket error`, err));
@@ -184,6 +213,7 @@ function session(ws) {
 
   ws.on('close', async () => {
     clearInterval(stats);
+    clearTimeout(idle);
     if (opening) {
       const opened = await opening.catch(() => null);
       await ticking;

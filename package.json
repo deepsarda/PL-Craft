@@ -6,6 +6,7 @@
     "start": "node --env-file-if-exists=.env server/main.js",
     "testcard": "node server/main.js --testcard",
     "db:install": "node --env-file-if-exists=.env server/install.js",
+    "db:test": "node --env-file-if-exists=.env server/dbtest.js",
     "test": "node --test"
   },
   "engines": {

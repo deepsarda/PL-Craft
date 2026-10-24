@@ -57,6 +57,9 @@ export async function openOracle({ worldId, playerId, debugHeatmap }) {
         return tick(input);
       }
     },
+    async save() {
+      await conn.execute('begin pc_engine.save; end;'); // the player, and a commit
+    },
     lost: () => !conn.isHealthy(),
     async shutdown() {
       try {

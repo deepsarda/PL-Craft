@@ -1,7 +1,38 @@
--- The world: generate, load, save, get and set blocks, rebuild spans (Sections 5 and 6).
+-- The world: generate, load, save, get and set blocks, rebuild spans (Sections 5 and 6). Engine lane.
 -- While playing it holds the dense block array and the span cache in package state.
 create or replace package pc_world as
-  -- Writes PC_WORLD and all PC_COLUMN rows for one world. Admin script, once per world (Section 3.2).
+
+  -- Writes PC_WORLDS and all PC_COLUMN rows for one world. Admin script, once per world (Section 3.2).
   procedure generate(p_world_id in pls_integer, p_seed in pls_integer);
+
+  -- Loads a world into memory: the block array, every column's spans and the highest span top (5.6).
+  procedure load(p_world_id in pls_integer);
+
+  -- Replaces the loaded world with one that lives only in memory, for tests: bedrock at y = 0 and stone
+  -- below p_ground_top, air above. While it is loaded nothing is read from or written to tables.
+  procedure clear(p_ground_top in pls_integer default 0);
+
+  -- Material of one block; 0 (air) anywhere outside the world.
+  function get_block(p_x in pls_integer, p_y in pls_integer, p_z in pls_integer) return pls_integer;
+
+  -- The physics view (Section 5.3): solid outside x and z and below y = 0, air from y = 64 up.
+  function is_solid(p_x in pls_integer, p_y in pls_integer, p_z in pls_integer) return boolean;
+
+  -- Changes one block in memory and rebuilds that column's spans. Fails outside the world.
+  procedure set_block(p_x in pls_integer, p_y in pls_integer, p_z in pls_integer, p_m in pls_integer);
+
+  -- Saves one edit (Section 11.5): rewrites that column's PC_COLUMN row and adds a PC_EDIT_LOG row.
+  -- Does not commit. Does nothing while a world made by clear() is loaded.
+  procedure save_edit(
+    p_x         in pls_integer,
+    p_y         in pls_integer,
+    p_z         in pls_integer,
+    p_old_m     in pls_integer,
+    p_new_m     in pls_integer,
+    p_player_id in pls_integer);
+
+  -- One above the highest solid block in the world, for the renderer's early-out (Section 8.6c).
+  function max_y return pls_integer;
+
 end pc_world;
 /
