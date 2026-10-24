@@ -286,8 +286,23 @@ create or replace package body pc_noise as
     p_lacunarity in binary_double,
     p_gain       in binary_double) return binary_double
   is
+    l_sum_noise  BINARY_DOUBLE  := 0.0d;
+    l_sum_weight BINARY_DOUBLE  := 0.0d;
+    l_cur_weight BINARY_DOUBLE  := 1.0d;
+    l_cur_freq   BINARY_DOUBLE  := 1.0d;
+    l_octaves    SIMPLE_INTEGER := NVL(p_octaves, 4);
   begin
-    return 0d;
+      for o in 0 .. l_octaves - 1 loop
+      l_sum_noise  := l_sum_noise + l_cur_weight * noise2(p_x * l_cur_freq, p_y * l_cur_freq);
+      l_sum_weight := l_sum_weight + l_cur_weight;
+      l_cur_weight := l_cur_weight * p_gain;
+      l_cur_freq   := l_cur_freq * p_lacunarity;
+    end loop;
+    if l_sum_weight > 0.0d then
+      return l_sum_noise / l_sum_weight;
+    else
+      return 0.0d;
+    end if;
   end fbm2;
 
 end pc_noise;

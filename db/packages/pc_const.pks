@@ -24,14 +24,22 @@ create or replace package pc_const as
   c_brick       constant simple_integer := 11;
   c_snow        constant simple_integer := 12;
 
-  -- For calculation of Noise
+  -- 2D and 3D simplex noise constants
   c_prng_m constant number := 2147483647;
   c_prng_a constant number := 16807;      
   c_f2 constant binary_double := 0.3660254037844386d; 
   c_g2 constant binary_double := 0.2113248654051871d;
   c_f3 constant binary_double := 1d / 3d;
   c_g3 constant binary_double := 1d / 6d;
-
+  
+  -- Height map constants
+  c_terrain_base simple_integer := 24;
+  c_terrain_amp simple_integer := 16;
+  c_terrain_freq binary_double := 1d/64d;
+  c_terrain_octaves simple_integer := 4;
+  c_terrain_lacunarity binary_double := 2d;
+  c_terrain_gain binary_double := 0.5d;
+  
   -- '00' to 'FF' by value, for writing bytes as hex text (Section 9.2). Filled when the package loads.
   type t_hex is table of varchar2(2) index by pls_integer;
   g_hex t_hex;
