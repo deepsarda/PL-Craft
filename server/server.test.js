@@ -4,6 +4,26 @@ import { HEADER_BYTES, readHeader } from '../client/frame.js';
 import { parseHello, parseInput, mergeInput } from './messages.js';
 import { openTestCard } from './testcard.js';
 import { statements } from './install.js';
+import { median, pickCollection, resolutionFor } from './bench.js';
+
+test('B3 replaces the associative array only with a challenger faster in two thirds of paired rounds', () => {
+  const aa = [118, 92, 102, 96, 98, 104, 112, 94, 105];
+  const nt = [105, 100, 109, 107, 103, 122, 103, 102, 111];
+  const va = [91, 84, 92, 86, 86, 97, 108, 87, 106]; // the run that settled it: faster in 8 of 9
+  assert.deepEqual(pickCollection({ AA: aa, NT: nt, VA: va }), { pick: 'VA', wins: { NT: 2, VA: 8 } });
+  const close = [117, 93, 101, 97, 97, 105, 111, 95, 104]; // faster in 5 of 9: noise
+  assert.equal(pickCollection({ AA: aa, NT: nt, VA: close }).pick, 'AA');
+});
+
+test("Section 4's decision rule picks the resolution from B4 + B5, boundaries included", () => {
+  const pick = ms => { const r = resolutionFor(ms); return `${r.width}×${r.height} far ${r.far}`; };
+  assert.equal(pick(9.6), '640×360 far 48');
+  assert.equal(pick(25), '640×360 far 48');
+  assert.equal(pick(25.1), '320×180 far 48');
+  assert.equal(pick(50), '320×180 far 48');
+  assert.equal(pick(50.1), '256×144 far 32');
+  assert.equal(median([9, 1, 4]), 4);
+});
 
 const input = { seq: 1834, keys: 21, mdx: -14, mdy: 3, lclick: 0, rclick: 1, held: 2 }; // Section 10.1
 

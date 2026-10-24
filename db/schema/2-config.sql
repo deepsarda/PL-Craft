@@ -3,7 +3,7 @@
 
 merge into pc_config c
 using (values
-  -- Rendering (14.1)
+  -- Rendering (14.1). Milestone 0 confirmed 640×360 at view distance 48 (db/bench/results.md).
   ('SCREEN_W', 640),
   ('SCREEN_H', 360),
   ('FOV_H_DEG', 90),

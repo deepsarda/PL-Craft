@@ -1,6 +1,7 @@
 // PL/Craft relay (Section 12): serves client/ and gives every WebSocket its own Oracle session.
 // Inputs go up as JSON, frames come back as one binary message each, one tick at a time per player.
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
@@ -240,6 +241,9 @@ server.on('error', err => {
 server.listen(PORT, () => {
   const engine = TESTCARD ? 'test card, Oracle is not called' : `Oracle at ${process.env.PLCRAFT_DB_CONNECT_STRING}`;
   console.log(`PL/Craft on http://localhost:${PORT} (${engine})`);
+  // Benchmark B6 wants Node next to Oracle, with the browser on another computer: say where to point it.
+  const lan = Object.values(os.networkInterfaces()).flat().filter(a => a.family === 'IPv4' && !a.internal);
+  for (const { address } of lan) console.log(`  from another computer: http://${address}:${PORT}`);
 });
 
 // Ctrl+C saves every player before exiting. Press it twice to quit without saving.

@@ -1,21 +1,32 @@
 create or replace package body pc_world as
 
-  -- The block store here is a plain working version, because physics and editing cannot be built on a fake
-  -- one. Still owed by the engine lane: the collection type benchmark B3 picks (5.3), the span cache that
-  -- rebuild_spans should fill (5.4), and real terrain in generate (Section 6). Tests T-W1 to T-W3.
+  -- The block store is built; still owed by the engine lane are the span cache that rebuild_spans should
+  -- fill (5.4) and real terrain in generate (Section 6). Tests T-W1 to T-W3.
 
+  -- A VARRAY, as benchmark B3 picked: faster random reads than an associative array in 8 of 9 side-by-side
+  -- rounds, and 26 MB for the 1,048,576 blocks against 30 MB (db/bench/results.md). Use it for the span cache
+  -- too. VARRAYs start at 1, so idx adds 1 (Section 13.3).
+  type t_blocks is varray(1048576) of pls_integer; -- 128 × 64 × 128
   type t_ints is table of pls_integer index by pls_integer;
   type t_by_hex is table of pls_integer index by varchar2(2);
 
-  g_blocks   t_ints;           -- idx(x, y, z) = (x * 128 + z) * 64 + y (Section 5.3)
+  g_blocks   t_blocks := t_blocks(); -- idx(x, y, z) = (x * 128 + z) * 64 + y + 1 (Section 5.3)
   g_world_id pls_integer;      -- null while a world made by clear() is loaded
   g_max_y    pls_integer := 0; -- one above the highest solid block
   g_value    t_by_hex;         -- 'A7' → 167, for unpacking PC_COLUMN.blocks
 
   function idx(p_x in pls_integer, p_y in pls_integer, p_z in pls_integer) return pls_integer is
   begin
-    return (p_x * pc_const.c_world_z + p_z) * pc_const.c_world_y + p_y;
+    return (p_x * pc_const.c_world_z + p_z) * pc_const.c_world_y + p_y + 1;
   end idx;
+
+  -- Every block present, so no read ever misses (Section 13.3). Sized once; reloads reuse it.
+  procedure size_blocks is
+  begin
+    if g_blocks.count = 0 then
+      g_blocks.extend(pc_const.c_world_x * pc_const.c_world_y * pc_const.c_world_z);
+    end if;
+  end size_blocks;
 
   function inside(p_x in pls_integer, p_y in pls_integer, p_z in pls_integer) return boolean is
   begin
@@ -68,7 +79,7 @@ create or replace package body pc_world as
         || p_world_id || ', <seed>)');
     end if;
 
-    g_blocks.delete;
+    size_blocks;
     g_max_y := 0;
     for i in 1 .. l_x.count loop
       l_base := idx(l_x(i), 0, l_z(i));
@@ -87,7 +98,7 @@ create or replace package body pc_world as
   procedure clear(p_ground_top in pls_integer default 0) is
     l_base pls_integer;
   begin
-    g_blocks.delete;
+    size_blocks;
     for x in 0 .. pc_const.c_world_x - 1 loop
       for z in 0 .. pc_const.c_world_z - 1 loop
         l_base := idx(x, 0, z);

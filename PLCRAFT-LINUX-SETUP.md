@@ -107,6 +107,29 @@ podman ps --filter name=plcraft-db
 
 It should show no running database container. The Mac's port test should fail after shutdown. Start a new session with the same launcher to reuse the saved database.
 
-For the final game's performance, prefer running Node on the Linux computer alongside Oracle and accessing the game from the Mac browser. This keeps database calls off the Wi-Fi hop. The browser still crosses Wi-Fi, and the design's 3 ms database round-trip and 24 fps goals must be benchmarked on the actual network.
+## 7. Run the game server on the Linux computer
+
+Benchmark B6 measured the Node-to-Oracle round trip over the hotspot at p95 25.7 ms, against a 3 ms budget, while the PL/SQL itself took well under 1 ms (`db/bench/results.md`). Running Node next to Oracle takes the database calls off Wi-Fi; only the browser's input and frames still cross it.
+
+On the Linux computer, check that `node -v` reports 22.9 or newer (`sudo dnf install -y nodejs`, or a current release from nodejs.org). Copy the project over from the Mac, without `node_modules`:
+
+```bash
+rsync -a --exclude node_modules --exclude .env ./ YOUR_USER@192.168.43.100:pl-craft/
+```
+
+Then on the Linux computer, in `~/pl-craft`, create `.env` and start the server. Use the hotspot address in the connect string: the launcher publishes Oracle only on that address, not on `localhost`.
+
+```bash
+npm ci
+cat > .env <<'EOF'
+PLCRAFT_DB_USER=plcraft
+PLCRAFT_DB_PASSWORD=your-application-password
+PLCRAFT_DB_CONNECT_STRING=192.168.43.100:1521/FREEPDB1
+EOF
+npm run db:bench   # B6 again, now without the Wi-Fi hop
+npm start
+```
+
+`npm start` prints the address to open from the Mac, such as `http://192.168.43.100:8080`. If firewalld blocks it, allow the Mac the same way as in step 4, with `port="8080"` in place of `port="1521"`. The browser still crosses Wi-Fi, so check the frame rate in the game's stats (F3) on the actual network.
 
 Sources: [Podman installation](https://podman.io/docs/installation), [Podman run](https://docs.podman.io/en/latest/markdown/podman-run.1.html), [Oracle container documentation](https://github.com/oracle/docker-images/tree/main/OracleDatabase/SingleInstance), [firewalld commands](https://firewalld.org/documentation/man-pages/firewall-cmd.html), [node-oracledb connections](https://node-oracledb.readthedocs.io/en/latest/user_guide/connection_handling.html).
