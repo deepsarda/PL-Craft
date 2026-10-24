@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HEADER_BYTES, readHeader } from '../client/frame.js';
-import { parseHello, parseInput, mergeInput } from './messages.js';
+import { parseHello, parseInput, mergeInput, parseCommand } from './messages.js';
 import { openTestCard } from './testcard.js';
 import { statements } from './install.js';
 import { median, pickCollection, resolutionFor } from './bench.js';
@@ -34,6 +34,15 @@ test('inputs outside the Section 10.1 ranges are rejected', () => {
   }
   assert.equal(parseInput(null), null);
   assert.equal(parseHello({ type: 'hello', world_id: 1, player_id: -7 }), null);
+});
+
+test('menu commands are checked before they reach the database', () => {
+  assert.deepEqual(parseCommand({ type: 'new_world', seed: 48151, phase: 2 }), { type: 'new_world', seed: 48151, phase: 2 });
+  assert.deepEqual(parseCommand({ type: 'join', world_id: 3 }), { type: 'join', worldId: 3 });
+  for (const bad of [{ type: 'new_world', seed: 0, phase: 1 }, { type: 'new_world', seed: 5, phase: 3 },
+    { type: 'new_world', seed: '5', phase: 1 }, { type: 'join', world_id: -1 }, { type: 'drop_table' }, null]) {
+    assert.equal(parseCommand(bad), null, JSON.stringify(bad));
+  }
 });
 
 test('inputs merged during a tick keep the latest keys, add mouse movement and keep clicks', () => {

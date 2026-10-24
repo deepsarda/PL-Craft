@@ -5,7 +5,7 @@ import { MATERIALS, HOTBAR, MISSING, buildPalette, buildHeatmap, shade } from '.
 import { drawCrosshair, drawTarget } from './aim.js';
 
 const query = new URLSearchParams(location.search);
-const worldId = Number(query.get('world') ?? WORLD_ID);
+let worldId = Number(query.get('world') ?? WORLD_ID); // changes when the player makes or joins a world
 const playerId = Number(query.get('player') ?? PLAYER_ID);
 const heatmap = query.has('heatmap') || DEBUG_HEATMAP;
 const wsUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
@@ -62,7 +62,7 @@ function settle() {
 }
 
 function showMenu() {
-  menu.hidden = state !== 'ready';
+  menu.hidden = state !== 'ready' || busy;
   if (!menu.hidden) {
     play.after(cursor);
     play.focus({ preventScroll: true });
@@ -107,6 +107,8 @@ const CONTROLS = [
 const CONTROL_SET = resultSet([['KEY', 12, true], ['ACTION', 18, true]]);
 $('controls').append(...table(CONTROL_SET, CONTROLS.map(CONTROL_SET.row).join('\n')));
 $('row-count').textContent = `${CONTROLS.length} rows selected.`;
+
+const rowsSelected = n => (n ? `${n} row${n === 1 ? '' : 's'} selected.` : 'no rows selected');
 
 // ---- Screen ---------------------------------------------------------------------------------------------
 
@@ -182,7 +184,7 @@ function select(i) {
   slot = (i + HOTBAR.length) % HOTBAR.length;
   slots[slot].setAttribute('aria-current', 'true');
   heldName.textContent = MATERIALS[HOTBAR[slot]].name;
-  heldName.getAnimations().forEach(a => a.cancel());
+  for (const animation of heldName.getAnimations()) animation.cancel();
   heldName.animate([{ opacity: 1 }, { opacity: 1, offset: 0.6 }, { opacity: 0 }], { duration: 1800 });
 }
 
@@ -238,7 +240,8 @@ addEventListener('beforeunload', e => {
   if (locked()) e.preventDefault();
 });
 
-stage.addEventListener('click', () => {
+stage.addEventListener('click', e => {
+  if (busy || e.target.closest('input, .command, .world-row')) return; // those have their own jobs
   if (state === 'ready' && !locked()) canvas.requestPointerLock()?.catch?.(() => {}); // failures arrive as pointerlockerror
 });
 document.addEventListener('pointerlockerror', () => say('ERROR: The browser did not capture the mouse. Click again in a moment.'));
@@ -256,6 +259,8 @@ document.addEventListener('pointerlockchange', () => {
 
 let ws = null;
 let state = 'closed';
+let busy = false; // a menu command is asking questions or waiting on the server
+let commandAt = 0;
 let attempt = 0;
 let helloAt = 0;
 let fov = 90;
@@ -299,6 +304,7 @@ function connect() {
 function onControl(msg) {
   if (msg.type === 'ready') {
     state = 'ready';
+    busy = false;
     attempt = 0;
     fov = msg.fov ?? 90;
     wantFirstFrame = true;
@@ -311,12 +317,147 @@ function onControl(msg) {
     }
     say(`Elapsed: ${elapsed(performance.now() - helloAt)}`);
     showMenu();
+  } else if (msg.type === 'worlds') {
+    showWorlds(msg.worlds, msg.current);
+  } else if (msg.type === 'joined') {
+    say('PL/SQL procedure successfully completed.');
+    say(`Elapsed: ${elapsed(performance.now() - commandAt)}`);
+    say(`You are in world ${msg.world_id}.`);
+    worldId = msg.world_id;
+    query.set('world', String(worldId)); // a reload comes back to this world
+    history.replaceState(null, '', `?${query}`);
+    wantFirstFrame = true;
+    busy = false;
+    showMenu();
   } else if (msg.type === 'error') {
     say(`ERROR: ${msg.message}`);
     inflight = 0;
+    listing = null;
+    if (busy) {
+      busy = false;
+      showMenu();
+    }
     if (locked()) document.exitPointerLock();
   }
 }
+
+// ---- Worlds: the menu's New world and Switch world -------------------------------------------------------
+
+const TERRAIN = ['flat', 'hills', 'hills, arches']; // by generation phase; 0 is the flat world of the old stub
+const WORLD_SET = resultSet([['WORLD_ID', 8], ['SEED', 10], ['TERRAIN', 13, true], ['CREATED', 16, true], ['CURRENT', 7, true]]);
+let listing = null; // the world rows while the list is open
+
+// One SQL*Plus-style ACCEPT: the label and an inline input. Resolves to the answer, the default for a bare
+// Enter, or null for Escape.
+function ask(label, fallback) {
+  say();
+  const input = document.createElement('input');
+  input.className = 'ask';
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.setAttribute('aria-label', `${label}, default ${fallback}`);
+  log.lastChild.append(`${label} [${fallback}]: `, input);
+  settle();
+  input.focus({ preventScroll: true });
+  return new Promise(resolve => {
+    input.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' && e.key !== 'Escape') return;
+      const answer = e.key === 'Enter' ? input.value.trim() || String(fallback) : null;
+      input.replaceWith(answer ?? '');
+      resolve(answer);
+    });
+  });
+}
+
+function stopAsking() {
+  busy = false;
+  showMenu();
+}
+
+// Shows the command in the transcript and sends its message; the reply arrives in onControl.
+function run(text, msg) {
+  if (ws?.readyState !== WebSocket.OPEN) {
+    say('ERROR: Not connected to the server.');
+    return stopAsking();
+  }
+  command(text);
+  wait();
+  commandAt = performance.now();
+  ws.send(JSON.stringify(msg));
+}
+
+async function newWorld() {
+  if (state !== 'ready' || busy) return;
+  busy = true;
+  showMenu();
+  say(); // set the questions apart from the output above, as a command would be
+  const fallback = 1 + Math.floor(Math.random() * 2147483646);
+  let seed;
+  while (seed === undefined) {
+    const answer = await ask('Seed', fallback);
+    if (answer === null) return stopAsking();
+    if (/^\d+$/.test(answer) && Number(answer) >= 1 && Number(answer) <= 2147483646) seed = Number(answer);
+    else say('ERROR: A seed is a whole number from 1 to 2147483646.');
+  }
+  let phase;
+  while (phase === undefined) {
+    const answer = await ask('Arches and overhangs, y or n', 'y');
+    if (answer === null) return stopAsking();
+    if (/^y(es)?$/i.test(answer)) phase = 2;
+    else if (/^no?$/i.test(answer)) phase = 1;
+    else say('ERROR: Answer y or n.');
+  }
+  run(`exec :world := pc_world.new_world(p_seed => ${seed}, p_phase => ${phase})`, { type: 'new_world', seed, phase });
+}
+
+function switchWorld() {
+  if (state !== 'ready' || busy) return;
+  busy = true;
+  showMenu();
+  run('select world_id, seed, terrain, created from pc_worlds;', { type: 'worlds' });
+}
+
+// The worlds as a result set whose rows are buttons: choosing one moves the player there. Escape leaves it.
+function showWorlds(worlds, current) {
+  say();
+  say(WORLD_SET.head);
+  say(WORLD_SET.rule);
+  log.lastChild.className = 'rule';
+  log.lastChild.setAttribute('aria-hidden', 'true');
+  listing = worlds.map(w => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'world-row';
+    row.textContent = WORLD_SET.row([w.world_id, w.seed, TERRAIN[w.phase] ?? '', w.created ?? '', w.world_id === current ? 'yes' : '']);
+    if (w.world_id === current) row.setAttribute('aria-current', 'true');
+    row.addEventListener('click', () => {
+      closeWorlds();
+      run(`exec pc_engine.init_session(p_world_id => ${w.world_id}, p_player_id => ${playerId})`, { type: 'join', world_id: w.world_id });
+    });
+    say();
+    log.lastChild.append(row);
+    return row;
+  });
+  say();
+  say(rowsSelected(worlds.length));
+  if (!listing.length) return stopAsking();
+  (listing.find(r => r.hasAttribute('aria-current')) ?? listing[0]).focus({ preventScroll: true });
+  settle();
+}
+
+function closeWorlds() {
+  listing?.forEach(row => { row.disabled = true; });
+  listing = null;
+}
+
+$('new-world').addEventListener('click', newWorld);
+$('switch-world').addEventListener('click', switchWorld);
+addEventListener('keydown', e => {
+  if (e.key === 'Escape' && listing) {
+    closeWorlds();
+    stopAsking();
+  }
+});
 
 // ---- Frames and lockstep (Sections 9.3 and 12.3) --------------------------------------------------------
 

@@ -18,6 +18,7 @@ const PILLAR_HALF = Math.atan(0.5 / PILLAR_DEPTH);
 const PILLARS = [[0, 2], [Math.PI / 2, 11], [Math.PI, 7], [-Math.PI / 2, 12]]; // [bearing, material]: E stone, S brick, W log, N snow
 const GRASS = 4;
 const TAU = 2 * Math.PI;
+const NO_WORLDS = 'The test card has no worlds. Start the server with npm start to use the database.';
 
 const fogBand = t => Math.max(0, Math.min(3, Math.floor((t - 24) / 8) + 1)); // Section 8.7
 
@@ -100,6 +101,15 @@ export async function openTestCard() {
       return Buffer.from(buf.subarray(0, o)); // a copy, because the next tick reuses buf
     },
     async save() {},
+    async worlds() {
+      throw new Error(NO_WORLDS);
+    },
+    async newWorld() {
+      throw new Error(NO_WORLDS);
+    },
+    async join() {
+      throw new Error(NO_WORLDS);
+    },
     lost: () => false,
     async shutdown() {},
   };

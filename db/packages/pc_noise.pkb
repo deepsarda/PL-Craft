@@ -276,7 +276,9 @@ create or replace package body pc_noise as
       l_t3 := l_t3 * l_t3;
       l_n3 := l_t3 * l_t3 * grad3(l_g3, l_x3, l_y3, l_z3);
     end if;
-    return 32.0d * (l_n0 + l_n1 + l_n2 + l_n3);
+    -- 32 is the reference factor for corners reaching 0.6; with 0.5 the extremes over 1,000,000 samples were
+    -- ±0.416, so the factor that brings them to about ±1 is 76.8 (test T-N3, Section 6.3).
+    return 76.8d * (l_n0 + l_n1 + l_n2 + l_n3);
   end noise3;
 
   function fbm2(

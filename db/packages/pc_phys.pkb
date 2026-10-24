@@ -74,6 +74,9 @@ create or replace package body pc_phys as
     merge into pc_player p
     using (select p_player_id player_id from dual) s
     on (p.player_id = s.player_id)
+    when matched then -- entering a different world: the last world's position could be inside a mountain here
+      update set world_id = p_world_id, px = l_mid_x + 0.5, py = l_surface, pz = l_mid_z + 0.5, saved_at = systimestamp
+       where p.world_id != p_world_id
     when not matched then
       insert (player_id, world_id, name, px, py, pz, yaw, pitch, held, saved_at)
       values (p_player_id, p_world_id, 'Player ' || p_player_id, l_mid_x + 0.5, l_surface, l_mid_z + 0.5,

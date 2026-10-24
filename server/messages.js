@@ -26,6 +26,22 @@ export function parseInput(msg) {
   return { seq, keys, mdx, mdy, lclick, rclick, held };
 }
 
+// Commands from the page's menu: list the worlds, make a new one, or move to one.
+export function parseCommand(msg) {
+  switch (msg?.type) {
+    case 'worlds':
+      return { type: 'worlds' };
+    case 'new_world':
+      return isInt(msg.seed, 1, 2147483646) && (msg.phase === 1 || msg.phase === 2)
+        ? { type: 'new_world', seed: msg.seed, phase: msg.phase }
+        : null;
+    case 'join':
+      return isInt(msg.world_id, 1, MAX_ID) ? { type: 'join', worldId: msg.world_id } : null;
+    default:
+      return null;
+  }
+}
+
 // An input that arrives while a tick is running: keep the latest keys, held block and seq,
 // add up mouse movement, and keep any click that happened in either.
 export function mergeInput(older, newer) {

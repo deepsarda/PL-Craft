@@ -33,7 +33,7 @@ create or replace package pc_phys as
   procedure init;
 
   -- Loads the player from PC_PLAYER. A first visit creates the row, standing on the surface in the middle
-  -- of the world. Does not commit.
+  -- of the world, and a player last seen in another world starts there too. Does not commit.
   procedure load(p_player_id in pls_integer, p_world_id in pls_integer);
 
   -- Puts the player at a position, at rest. Used by load, and by tests.

@@ -14,23 +14,22 @@ create or replace package pc_world as
   g_span_y1 t_span_slots := t_span_slots();
   g_span_m  t_span_slots := t_span_slots();
 
+  -- Generates terrain (Section 6) and writes the world's PC_WORLDS row and all its PC_COLUMN rows, then commits.
+  -- p_phase 1 is hills from 2D noise, and 2 adds arches and overhangs from 3D noise; null takes GEN_PHASE. The
+  -- new world stays loaded in this session. Admin scripts call it once per world (Section 3.2).
+  procedure generate(p_world_id in pls_integer, p_seed in pls_integer, p_phase in pls_integer default null);
+
+  -- Generates a world under the next free world id, and returns the id.
+  function new_world(p_seed in pls_integer, p_phase in pls_integer default null) return pls_integer;
+
+  -- The unrounded height of column (x, z) in the last world built, from its seed and settings (Section 6.4).
   function height_map(p_x in pls_integer, p_z in pls_integer) return binary_double;
 
-  procedure material(p_col in out nocopy t_blocks, p_base in pls_integer, p_h in pls_integer, p_sea in pls_integer, p_snow in pls_integer);
+  -- Generates terrain into memory only, without touching tables, like clear. For tests.
+  procedure build(p_seed in pls_integer, p_phase in pls_integer default null);
 
-  procedure arches(
-    p_col in out nocopy t_blocks,
-    p_base in pls_integer,         
-    p_x in pls_integer,
-    p_z in pls_integer,
-    p_h_raw in binary_double,      
-    p_squash in binary_double,
-    p_freq_xz in binary_double,
-    p_freq_y in binary_double,
-    p_sea in pls_integer,
-    p_snow in pls_integer);
-  -- Writes PC_WORLDS and all PC_COLUMN rows for one world. Admin script, once per world (Section 3.2).
-  procedure generate(p_world_id in pls_integer, p_seed in pls_integer);
+  -- The 64 blocks phase 1 gives a column of solid height p_height (Section 6.5), as hex, byte y at height y.
+  function column_hex(p_height in pls_integer) return varchar2;
 
   -- Loads a world into memory: the block array, every column's spans and the highest span top (5.6).
   procedure load(p_world_id in pls_integer);

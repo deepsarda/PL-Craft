@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { readHeader } from '../client/frame.js';
-import { parseHello, parseInput, mergeInput } from './messages.js';
+import { parseHello, parseInput, mergeInput, parseCommand } from './messages.js';
 import { dbSettings, openOracle } from './oracle.js';
 import { INTERPRETED_WARNING, installFromEnv } from './install.js';
 import { openTestCard } from './testcard.js';
@@ -97,6 +97,7 @@ function session(ws) {
   let pending = null; // the next input, merged if several arrived during one tick
   let ticking = null; // promise of the tick loop, while it runs
   let saveDue = false; // ticks stopped, so pc_engine.save should run
+  let job = null; // a menu command waiting for, or taking, its turn on the connection
   let idle = null; // timer that sets saveDue
   const calls = [];
   let renderUs = 0;
@@ -152,9 +153,37 @@ function session(ws) {
     ticking ??= pump().finally(() => { ticking = null; });
   }
 
-  // Ticks and saves share one connection, so they take turns here.
+  // A menu command: list the worlds, make one, or move to one. Generating a world takes seconds, so the reply
+  // carries how long it took.
+  async function runJob(cmd) {
+    const began = performance.now();
+    try {
+      if (cmd.type === 'worlds') {
+        sendJson({ type: 'worlds', worlds: await engine.worlds(), current: hello.worldId });
+        return;
+      }
+      if (cmd.type === 'new_world') {
+        hello.worldId = await engine.newWorld(cmd.seed, cmd.phase);
+      } else {
+        await engine.join(cmd.worldId);
+        hello.worldId = cmd.worldId;
+      }
+      sendJson({ type: 'joined', world_id: hello.worldId, ms: Math.round(performance.now() - began) });
+    } catch (err) {
+      console.error(`${who()}: ${cmd.type} failed`, err);
+      if (engine.lost()) return fail('Lost the connection to Oracle.', true);
+      fail(err.message);
+    }
+  }
+
+  // Commands, ticks and saves share one connection, so they take turns here.
   async function pump() {
-    while ((pending || saveDue) && ws.readyState === ws.OPEN) {
+    while ((job || pending || saveDue) && ws.readyState === ws.OPEN) {
+      if (job) {
+        await runJob(job);
+        job = null;
+        continue;
+      }
       if (!pending) {
         saveDue = false;
         try {
@@ -192,6 +221,13 @@ function session(ws) {
     }
     if (!hello) return void start(msg);
     if (!engine) return; // still loading the world; the browser waits for ready before sending input
+    if (msg?.type) {
+      const cmd = parseCommand(msg);
+      if (!cmd) return fail('The server could not read that command.');
+      if (job) return fail('Still busy with the last command.');
+      job = cmd;
+      return kick();
+    }
     const input = parseInput(msg);
     if (!input) return fail('The server could not read that input message.');
     pending = pending ? mergeInput(pending, input) : input;
