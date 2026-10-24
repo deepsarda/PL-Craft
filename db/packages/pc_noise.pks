@@ -1,5 +1,19 @@
 -- Seeded randomness and simplex noise for terrain (Section 6). Engine lane.
 create or replace package pc_noise as
+  --helper function for noise2 and noise3
+  function grad2(
+    p_gi in simple_integer,
+    p_x  in binary_double,
+    p_y  in binary_double
+  ) return binary_double;
+
+  function grad3(
+    p_gi in simple_integer,
+    p_x  in binary_double,
+    p_y  in binary_double,
+    p_z  in binary_double
+  ) return binary_double;
+  
 
   -- Builds the permutation table from the seed: Park–Miller draws and a Fisher–Yates shuffle (6.1).
   procedure seed(p_seed in pls_integer);
