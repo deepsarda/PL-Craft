@@ -43,9 +43,10 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 echo "Oracle will listen on $bind_ip:1521. Keep this terminal open. Ctrl-C stops it."
+# Natively compiled PL/SQL runs from /dev/shm, which Podman mounts noexec by default (ORA-06590).
 podman run --rm --name "$container_name" \
   --cidfile "$session_dir/container.cid" \
-  --restart=no --stop-timeout=60 --shm-size=1g --pull=never \
+  --restart=no --stop-timeout=60 --tmpfs /dev/shm:rw,exec,size=1g --pull=never \
   --publish "$bind_ip:1521:1521" \
   --env ORACLE_PWD \
   --volume plcraft-data:/opt/oracle/oradata \

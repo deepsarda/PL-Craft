@@ -1,0 +1,18 @@
+{
+  "name": "pl-craft",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/main.js",
+    "testcard": "node server/main.js --testcard",
+    "db:install": "node --env-file-if-exists=.env server/install.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22.9"
+  },
+  "dependencies": {
+    "oracledb": "^26.0.0",
+    "ws": "^8.22.0"
+  }
+}
