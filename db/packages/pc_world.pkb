@@ -78,24 +78,218 @@ create or replace package body pc_world as
     g_span_n(l_col + 1) := l_n;
   end rebuild_spans;
 
-  -- STUB until pc_noise exists (Section 6): a flat world. Bedrock at y = 0, stone 1–19, dirt 20–22 and
-  -- grass at 23, which is Section 6.5 with H = 24, so a player's feet rest at y = 24. p_seed is only stored.
-  procedure generate(p_world_id in pls_integer, p_seed in pls_integer) is
-    l_blocks raw(64) := hextoraw('01' || rpad('02', 38, '02') || '030303' || '04' || rpad('00', 80, '00'));
+  function height_map(p_x in pls_integer, p_z in pls_integer) return binary_double is
   begin
+    return pc_const.c_terrain_base
+         + pc_const.c_terrain_amp
+           * pc_noise.fbm2(
+               p_x * pc_const.c_terrain_freq,
+               p_z * pc_const.c_terrain_freq,
+               pc_const.c_terrain_octaves,
+               pc_const.c_terrain_lacunarity,
+               pc_const.c_terrain_gain);
+  end height_map;
+  
+  procedure materials(
+    p_col in out nocopy t_blocks,
+    p_base in pls_integer,            -- idx(x, 0, z)
+    p_h in pls_integer,            -- solid height H  (clamped 2..60)
+    p_sea in pls_integer,
+    p_snow in pls_integer)
+  is
+    l_top pls_integer;                 -- material for the top block
+    l_mid pls_integer;                 -- material for the 3 layers under the top
+  begin
+    -- Decide top + mid materials
+    if p_h - 1 <= p_sea + 1 then       -- beach: top of ground at or below sea_level + 1
+      l_top := pc_const.c_sand;
+      l_mid := pc_const.c_sand;
+    elsif p_h - 1 >= p_snow then        -- snow line
+      l_top := pc_const.c_snow;
+      l_mid := pc_const.c_dirt;
+    else
+      l_top := pc_const.c_grass;
+      l_mid := pc_const.c_dirt;
+    end if;
+
+    for y in 0 .. pc_const.c_world_y - 1 loop
+      if y = 0 then
+        p_col(p_base + y) := pc_const.c_bedrock;
+      elsif y <= p_h - 5 then
+        p_col(p_base + y) := pc_const.c_stone;
+      elsif y <= p_h - 2 then
+        p_col(p_base + y) := l_mid;
+      elsif y = p_h - 1 then
+        p_col(p_base + y) := l_top;
+      elsif y < p_sea and y >= p_h then
+        p_col(p_base + y) := pc_const.c_water;
+      else
+        p_col(p_base + y) := pc_const.c_air;
+      end if;
+    end loop;
+  end materials_phase1;
+
+  procedure arches(
+    p_col in out nocopy t_blocks,
+    p_base in pls_integer,         
+    p_x in pls_integer,
+    p_z in pls_integer,
+    p_h_raw in binary_double,      
+    p_squash in binary_double,
+    p_freq_xz in binary_double,
+    p_freq_y in binary_double,
+    p_sea in pls_integer,
+    p_snow in pls_integer)
+  is
+    l_y_lo  pls_integer;               -- bottom of the evaluation band
+    l_y_hi  pls_integer;               -- top of the evaluation band  (inclusive)
+    l_d     binary_double;
+    l_h_int pls_integer;               -- clamped integer height for fall-back
+    l_depth pls_integer := 0;          -- blocks since last air  (for material assignment)
+    l_top   pls_integer;               -- top material for this column
+  begin
+    -- Band limits, clamped into the world
+    l_y_lo := greatest(1, floor(p_h_raw - p_squash));
+    l_y_hi := least(pc_const.c_world_y - 1, ceil(p_h_raw + p_squash));
+    l_h_int := greatest(2, least(60, round(p_h_raw)));
+
+    -- Pass 1: decide solid / air for every block in the column
+    -- Below the band: always solid (stone placeholder; materials overwrite later)
+    for y in 0 .. pc_const.c_world_y - 1 loop
+      if y = 0 then
+        p_col(p_base + y) := pc_const.c_bedrock;
+      elsif y < l_y_lo then
+        p_col(p_base + y) := pc_const.c_stone;
+      elsif y <= l_y_hi then
+        -- Inside the band: evaluate the density field
+        l_d := pc_noise.noise3(p_x / p_freq_xz, y / p_freq_y, p_z / p_freq_xz)
+             + (p_h_raw - y) / p_squash;
+        if l_d > 0 then
+          p_col(p_base + y) := pc_const.c_stone;   -- solid placeholder
+        elsif y < p_sea then
+          p_col(p_base + y) := pc_const.c_water;
+        else
+          p_col(p_base + y) := pc_const.c_air;
+        end if;
+      elsif y < p_sea then
+        p_col(p_base + y) := pc_const.c_water;
+      else
+        p_col(p_base + y) := pc_const.c_air;
+      end if;
+    end loop;
+
+    -- Pass 2: assign materials top-down  (Section 6.6 "Materials after phase 2")
+    -- Decide the top-surface material the same way as phase 1.
+    if l_h_int - 1 <= p_sea + 1 then
+      l_top := pc_const.c_sand;
+    elsif l_h_int - 1 >= p_snow then
+      l_top := pc_const.c_snow;
+    else
+      l_top := pc_const.c_grass;
+    end if;
+
+    l_depth := 0;
+    for y in reverse 1 .. pc_const.c_world_y - 1 loop
+      if p_col(p_base + y) = pc_const.c_air or p_col(p_base + y) = pc_const.c_water then
+        l_depth := 0;  -- reset: we are in air / water
+      else
+        -- solid block
+        l_depth := l_depth + 1;
+        if l_depth = 1 then
+          p_col(p_base + y) := l_top;        -- first solid under air
+        elsif l_depth <= 4 then
+          if l_top = pc_const.c_sand then
+            p_col(p_base + y) := pc_const.c_sand;
+          else
+            p_col(p_base + y) := pc_const.c_dirt;
+          end if;
+        else
+          p_col(p_base + y) := pc_const.c_stone;
+        end if;
+      end if;
+    end loop;
+    -- y = 0 stays bedrock (set in pass 1)
+  end arches;
+
+
+  procedure generate(p_world_id in pls_integer, p_seed in pls_integer) is
+    l_phase    pls_integer := pc_const.setting('GEN_PHASE');
+    l_sea      pls_integer := pc_const.setting('SEA_LEVEL');
+    l_snow     pls_integer := pc_const.setting('SNOW_LINE');
+    l_squash   binary_double;
+    l_freq_xz  binary_double;
+    l_freq_y   binary_double;
+    l_h_raw    binary_double;
+    l_h        pls_integer;
+    l_base     pls_integer;
+    l_hex      varchar2(128);
+  begin
+    -- Seed the noise generator
+    pc_noise.seed(p_seed);
+
+    -- Phase 2 settings (read only when needed)
+    if l_phase >= 2 then
+      l_squash  := pc_const.setting('SQUASH');
+      l_freq_xz := pc_const.setting('DENSITY_FREQ_XZ');
+      l_freq_y  := pc_const.setting('DENSITY_FREQ_Y');
+    end if;
+
+    -- Ensure block array is sized
+    size_world;
+
+    -- Build every column
+    for x in 0 .. pc_const.c_world_x - 1 loop
+      for z in 0 .. pc_const.c_world_z - 1 loop
+        l_base := idx(x, 0, z);
+
+        -- 6.4  Height map
+        l_h_raw := height_map(x, z);
+        l_h     := greatest(2, least(60, round(l_h_raw)));
+
+        if l_phase >= 2 then
+          -- 6.6  Arches and overhangs (includes its own material pass)
+          arches(g_blocks, l_base, x, z, l_h_raw, l_squash, l_freq_xz, l_freq_y, l_sea, l_snow);
+        else
+          -- 6.5  Materials (phase 1 only)
+          materials_phase1(g_blocks, l_base, l_h, l_sea, l_snow);
+        end if;
+
+        -- Track the highest solid block
+        for y in reverse 0 .. pc_const.c_world_y - 1 loop
+          if g_blocks(l_base + y) != pc_const.c_air
+             and g_blocks(l_base + y) != pc_const.c_water then
+            if y + 1 > g_max_y then
+              g_max_y := y + 1;
+            end if;
+            exit;
+          end if;
+        end loop;
+
+        rebuild_spans(x, z);
+      end loop;
+    end loop;
+
+    -- Persist to tables
     merge into pc_worlds w
     using (select p_world_id world_id from dual) s
     on (w.world_id = s.world_id)
-    when matched then update set seed = p_seed, gen_version = 0, created_at = systimestamp
+    when matched then update set seed = p_seed, gen_version = l_phase, created_at = systimestamp
     when not matched then
       insert (world_id, seed, size_x, size_y, size_z, gen_version)
-      values (p_world_id, p_seed, pc_const.c_world_x, pc_const.c_world_y, pc_const.c_world_z, 0);
+      values (p_world_id, p_seed, pc_const.c_world_x, pc_const.c_world_y, pc_const.c_world_z, l_phase);
 
     delete from pc_column where world_id = p_world_id;
-    insert into pc_column (world_id, x, z, blocks)
-      select p_world_id, trunc((level - 1) / pc_const.c_world_z), mod(level - 1, pc_const.c_world_z), l_blocks
-        from dual
-     connect by level <= pc_const.c_world_x * pc_const.c_world_z;
+    for x in 0 .. pc_const.c_world_x - 1 loop
+      for z in 0 .. pc_const.c_world_z - 1 loop
+        l_base := idx(x, 0, z);
+        l_hex := '';
+        for y in 0 .. pc_const.c_world_y - 1 loop
+          l_hex := l_hex || pc_const.g_hex(g_blocks(l_base + y));
+        end loop;
+        insert into pc_column (world_id, x, z, blocks)
+        values (p_world_id, x, z, hextoraw(l_hex));
+      end loop;
+    end loop;
     commit;
   end generate;
 

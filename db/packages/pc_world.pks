@@ -14,6 +14,21 @@ create or replace package pc_world as
   g_span_y1 t_span_slots := t_span_slots();
   g_span_m  t_span_slots := t_span_slots();
 
+  function height_map(p_x in pls_integer, p_z in pls_integer) return binary_double;
+
+  procedure material(p_col in out nocopy t_blocks, p_base in pls_integer, p_h in pls_integer, p_sea in pls_integer, p_snow in pls_integer);
+
+  procedure arches(
+    p_col in out nocopy t_blocks,
+    p_base in pls_integer,         
+    p_x in pls_integer,
+    p_z in pls_integer,
+    p_h_raw in binary_double,      
+    p_squash in binary_double,
+    p_freq_xz in binary_double,
+    p_freq_y in binary_double,
+    p_sea in pls_integer,
+    p_snow in pls_integer);
   -- Writes PC_WORLDS and all PC_COLUMN rows for one world. Admin script, once per world (Section 3.2).
   procedure generate(p_world_id in pls_integer, p_seed in pls_integer);
 
